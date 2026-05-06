@@ -49,4 +49,4 @@ Feel free to fork this project and add your own mathematical rendering modes! To
 
 ## 📜 License
 
-Distributed under the MIT License.
+Distributed under the GPL-3.0 License.
