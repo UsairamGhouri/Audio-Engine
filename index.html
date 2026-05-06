@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Engine v5.1 - Noir Edition</title>
+    
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' stroke='%23aaaaaa' stroke-width='10' fill='none'/><circle cx='50' cy='50' r='20' fill='%23aaaaaa'/></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #050505; color: #eee; overflow: hidden;
+            font-family: 'Rajdhani', sans-serif;
+            transition: background-image 0.5s ease;
+            background-size: cover; background-position: center;
+        }
+        
+        canvas { display: block; width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 10; }
+        
+        #ui {
+            position: absolute; top: 20px; left: 20px; width: 280px;
+            background: rgba(25, 25, 28, 0.85); padding: 20px; border-radius: 8px;
+            border: 1px solid #444; backdrop-filter: blur(15px);
+            max-height: 90vh; overflow-y: auto; z-index: 100;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        #ui.hidden { opacity: 0; pointer-events: none; transform: translateX(-20px); }
+
+        h2 { margin: 0 0 15px 0; font-size: 18px; text-transform: uppercase; color: #ddd; font-family: 'Orbitron', sans-serif; letter-spacing: 1px;}
+        .control { margin-bottom: 12px; }
+        label { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; color: #aaa; font-weight: 700; letter-spacing: 0.5px;}
+        
+        select, button {
+            width: 100%; background: rgba(45, 45, 45, 0.8); color: #eee; border: 1px solid #555;
+            padding: 8px; border-radius: 4px; cursor: pointer; font-size: 13px;
+            font-family: 'Orbitron', sans-serif; backdrop-filter: blur(5px);
+            transition: all 0.2s;
+        }
+        select:focus, button:hover { border-color: #888; outline: none; background: rgba(65, 65, 65, 0.9); }
+        
+        button.primary { background: #555; color: #fff; font-weight: bold; border: none; margin-bottom: 8px;}
+        button.primary:hover { background: #777; box-shadow: 0 0 10px rgba(0, 0, 0, 0.4); }
+        
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #888; }
+
+        .file-upload-wrapper { position: relative; overflow: hidden; display: inline-block; width: 100%; margin-bottom: 5px; }
+        .file-upload-wrapper input[type=file] { position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; height: 100%; width: 100%; }
+        .file-upload-btn {
+            display: block; background: rgba(45, 45, 45, 0.8); color: #eee; border: 1px solid #555;
+            padding: 8px; border-radius: 4px; text-align: center; font-family: 'Orbitron', sans-serif;
+            font-size: 13px; transition: 0.2s; cursor: pointer;
+        }
+        .file-upload-wrapper:hover .file-upload-btn { border-color: #888; background: rgba(65, 65, 65, 0.9); color: #fff; }
+        
+        #btn-clear-bg { font-size: 11px; padding: 6px; background: rgba(60, 40, 40, 0.5); border-color: #644; color: #ddd;}
+        #btn-clear-bg:hover { background: rgba(80, 50, 50, 0.8); border-color: #855; color: #fff; }
+
+        #toggle-ui {
+            position: absolute; top: 20px; right: 20px; width: 44px; height: 44px;
+            background: rgba(25, 25, 28, 0.85); border: 1px solid #444; border-radius: 8px;
+            cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center;
+            backdrop-filter: blur(10px); transition: all 0.2s; color: #aaa;
+        }
+        #toggle-ui:hover { border-color: #888; background: rgba(45, 45, 45, 0.8); box-shadow: 0 0 10px rgba(0,0,0,0.3); color: #fff;}
+        #toggle-ui svg { width: 24px; height: 24px; fill: currentColor; }
+        
+        .highlight-slider { accent-color: #aaa !important; }
+    </style>
+</head>
+<body>
+
+    <button id="toggle-ui" title="Toggle HUD"></button>
+
+    <div id="ui">
+        <h2>Audio Engine v5.1</h2>
+        
+        <button class="primary" id="btn-system">Capture System Audio</button>
+        <button id="btn-mic" style="margin-bottom: 20px;">Use Microphone</button>
+
+        <div class="control">
+            <label>Background Layer</label>
+            <div class="file-upload-wrapper">
+                <input type="file" id="bg-upload" accept="image/*">
+                <div class="file-upload-btn" id="file-label-text">Select Image File...</div>
+            </div>
+            <button id="btn-clear-bg">Remove Background</button>
+        </div>
+
+        <div class="control" style="margin-top: 15px;">
+            <label>Visual Mode</label>
+            <select id="mode-select">
+                <option value="bars">1. Cyber Bars</option>
+                <option value="radial-bars">2. Radial Reactor</option>
+                <option value="waveform">3. Oscilloscope Line</option>
+                <option value="circular-wave">4. Orbital Wave</option>
+                <option value="particles">5. Frequency Dust</option>
+                <option value="matrix">6. Audio Matrix</option>
+                <option value="rings">7. Expanding Rings</option>
+                <option value="starburst">8. Starburst Rays</option>
+                <option value="terrain">9. Wireframe Terrain</option>
+                <option value="mandala">10. Symmetrical Mandala</option>
+                <option value="laser">11. Laser Pulses</option>
+                <option value="vortex">12. Spiral Vortex</option>
+                <option value="dots">13. Quantum Dots</option>
+                <option value="polygon">14. Morphing Polygon</option>
+                <option value="neon-orb">15. Neon Heartbeat</option>
+                <option value="kaleidoscope">16. True Kaleidoscope</option>
+                <option value="retro-grid">17. Retro Synthwave</option>
+                <option value="dna">18. DNA Helix</option>
+                <option value="glitch-city">19. Glitch City</option>
+                <option value="supernova">20. Supernova Burst</option>
+                <option value="black-hole">21. Black Hole Singularity</option>
+                <option value="tunnel">22. 3D Wireframe Tunnel</option>
+                <option value="galaxy">23. Rotating Galaxy</option>
+                <option value="fractal-tree">24. Audio Fractal Tree</option>
+                <option value="lightning">25. Plasma Lightning</option>
+                <option value="liquid-blobs">26. Liquid Frequency</option>
+                <option value="tesseract">27. Rotating Tesseract</option>
+                <option value="pulse-web">28. Neural Network Web</option>
+                <option value="sonic-flower">29. Sonic Phyllotaxis</option>
+                <option value="hyperspace">30. Hyperspace Drive</option>
+            </select>
+        </div>
+
+        <div class="control">
+            <label><span>Color Palette</span></label>
+            <select id="color-select">
+                <option value="noir">Noir Monolith (Grayscale)</option>
+                <option value="cyan-magenta">Cyberpunk (Cyan/Magenta)</option>
+                <option value="synthwave">Synthwave (Pink/Purple/Cyan)</option>
+                <option value="vaporwave">Vaporwave (Pastels)</option>
+                <option value="fire">Hellfire (Red/Yellow)</option>
+                <option value="blood">Blood Moon (Deep Reds)</option>
+                <option value="ocean">Deep Ocean (Blue/Teal)</option>
+                <option value="forest">Neon Forest (Greens)</option>
+                <option value="gold">Liquid Gold (Warm)</option>
+                <option value="matrix">Hacker (Pure Green)</option>
+                <option value="rainbow">Full Spectrum</option>
+            </select>
+        </div>
+
+        <div class="control">
+            <label><span>Sensitivity (Bounce)</span> <span id="val-sens">1.5</span></label>
+            <input type="range" id="sens-slider" min="0.5" max="4" step="0.1" value="1.5">
+        </div>
+        
+        <div class="control">
+            <label><span id="custom-label" style="color: #ddd;">Bar Width</span> <span id="val-custom">1.0x</span></label>
+            <input type="range" id="custom-slider" class="highlight-slider" min="0.1" max="4.0" step="0.1" value="1.0">
+        </div>
+        
+        <div class="control">
+            <label><span>Smoothing (Lag)</span> <span id="val-smooth">0.8</span></label>
+            <input type="range" id="smooth-slider" min="0.1" max="0.99" step="0.01" value="0.8">
+        </div>
+        
+        <div class="control">
+            <label><span>Glow Blending</span></label>
+            <select id="blend-select">
+                <option value="lighter">Additive (Neon Glow)</option>
+                <option value="source-over">Standard (Solid)</option>
+            </select>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        // --- UI Logic ---
+        const toggleBtn = document.getElementById('toggle-ui');
+        const uiPanel = document.getElementById('ui');
+        let uiVisible = true;
+
+        const eyeOpen = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
+        const eyeClosed = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>`;
+
+        toggleBtn.innerHTML = eyeOpen;
+        toggleBtn.addEventListener('click', () => {
+            uiVisible = !uiVisible;
+            if (uiVisible) { uiPanel.classList.remove('hidden'); toggleBtn.innerHTML = eyeOpen; } 
+            else { uiPanel.classList.add('hidden'); toggleBtn.innerHTML = eyeClosed; }
+        });
+
+        const bgUpload = document.getElementById('bg-upload');
+        const fileLabelText = document.getElementById('file-label-text');
+        bgUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileLabelText.innerText = file.name.length > 25 ? file.name.substring(0, 22) + '...' : file.name;
+                const reader = new FileReader();
+                reader.onload = (event) => { document.body.style.backgroundImage = `url(${event.target.result})`; };
+                reader.readAsDataURL(file);
+            }
+        });
+        document.getElementById('btn-clear-bg').addEventListener('click', () => {
+            document.body.style.backgroundImage = 'none';
+            bgUpload.value = ''; fileLabelText.innerText = 'Select Image File...';
+        });
+
+        // --- Core Audio Engine ---
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height, centerX, centerY;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            centerX = width / 2; centerY = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        let audioCtx, analyser, dataArray, bufferLength;
+        let isRunning = false;
+
+        const modeSelect = document.getElementById('mode-select');
+        const colorSelect = document.getElementById('color-select');
+        const blendSelect = document.getElementById('blend-select');
+        const sensSlider = document.getElementById('sens-slider');
+        const smoothSlider = document.getElementById('smooth-slider');
+        const customSlider = document.getElementById('custom-slider');
+        const customLabel = document.getElementById('custom-label');
+
+        const modeCustomLabels = {
+            'bars': 'Bar Width', 'radial-bars': 'Base Radius', 'waveform': 'Line Thickness',
+            'circular-wave': 'Circle Radius', 'particles': 'Particle Size', 'matrix': 'Column Width',
+            'rings': 'Ring Spacing', 'starburst': 'Ray Thickness', 'terrain': 'Terrain Height',
+            'mandala': 'Mandala Scale', 'laser': 'Laser Thickness', 'vortex': 'Swirl Tightness',
+            'dots': 'Dot Size', 'polygon': 'Polygon Size', 'neon-orb': 'Orb Radius',
+            'kaleidoscope': 'Geometry Scale', 'retro-grid': 'Sun Size', 'dna': 'Helix Width',
+            'glitch-city': 'Glitch Block Size', 'supernova': 'Ray Length', 'black-hole': 'Event Horizon Size',
+            'tunnel': 'Tunnel Scale', 'galaxy': 'Galaxy Spread', 'fractal-tree': 'Branch Length',
+            'lightning': 'Bolt Thickness', 'liquid-blobs': 'Blob Size', 'tesseract': 'Hypercube Size',
+            'pulse-web': 'Web Spread', 'sonic-flower': 'Petal Density', 'hyperspace': 'Star Size'
+        };
+
+        modeSelect.addEventListener('change', () => {
+            customLabel.innerText = modeCustomLabels[modeSelect.value] || 'Custom Modifier';
+        });
+
+        sensSlider.addEventListener('input', e => document.getElementById('val-sens').innerText = e.target.value);
+        customSlider.addEventListener('input', e => document.getElementById('val-custom').innerText = e.target.value + 'x');
+        smoothSlider.addEventListener('input', e => {
+            document.getElementById('val-smooth').innerText = e.target.value;
+            if(analyser) analyser.smoothingTimeConstant = parseFloat(e.target.value);
+        });
+
+        async function initAudio(stream) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            const source = audioCtx.createMediaStreamSource(stream);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 512; 
+            analyser.smoothingTimeConstant = parseFloat(smoothSlider.value);
+            source.connect(analyser);
+            bufferLength = analyser.frequencyBinCount;
+            dataArray = new Uint8Array(bufferLength);
+            if (!isRunning) { isRunning = true; animate(); }
+        }
+
+        document.getElementById('btn-system').addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                stream.getVideoTracks().forEach(track => track.stop());
+                initAudio(stream);
+            } catch (err) { alert('Could not capture system audio. Ensure you check "Share Audio".'); }
+        });
+        document.getElementById('btn-mic').addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                initAudio(stream);
+            } catch (err) { alert('Microphone access denied.'); }
+        });
+
+        function getColor(index, maxIndex, value) {
+            const palette = colorSelect.value;
+            const norm = index / maxIndex;
+            
+            // The Noir Palette Implementation
+            if (palette === 'noir') return `hsl(0, 0%, ${Math.min(100, 20 + value / 2.5)}%)`;
+            
+            if (palette === 'cyan-magenta') return `hsl(${180 + norm * 120}, 100%, ${Math.min(100, 30 + value/3)}%)`;
+            if (palette === 'synthwave') {
+                const hues = [330, 280, 190];
+                return `hsl(${hues[index % 3]}, 100%, ${Math.min(100, 40 + value/3)}%)`;
+            }
+            if (palette === 'vaporwave') return `hsl(${280 + norm * 80}, 70%, 75%)`;
+            if (palette === 'fire') return `hsl(${norm * 50}, 100%, ${Math.min(100, 30 + value/4)}%)`;
+            if (palette === 'blood') return `hsl(${0 + norm * 15}, 100%, ${Math.min(100, 20 + value/3)}%)`;
+            if (palette === 'ocean') return `hsl(${200 + norm * 60}, 100%, ${Math.min(100, 30 + value/4)}%)`;
+            if (palette === 'forest') return `hsl(${100 + norm * 40}, 100%, ${Math.min(100, 25 + value/3)}%)`;
+            if (palette === 'gold') return `hsl(${35 + norm * 15}, 100%, ${Math.min(100, 30 + value/3)}%)`;
+            if (palette === 'matrix') return `rgb(0, ${Math.min(255, value + 50)}, 0)`;
+            if (palette === 'rainbow') return `hsl(${norm * 360}, 100%, 50%)`;
+            return '#fff';
+        }
+
+        let particles = [];
+        class Particle {
+            constructor() { this.reset(); this.z = Math.random() * width; }
+            reset() {
+                this.x = centerX; this.y = centerY;
+                this.angle = Math.random() * Math.PI * 2;
+                this.speed = Math.random() * 5 + 1;
+                this.size = Math.random() * 3 + 1;
+                this.life = 255;
+            }
+            update(audioBoost) {
+                this.x += Math.cos(this.angle) * (this.speed + audioBoost/20);
+                this.y += Math.sin(this.angle) * (this.speed + audioBoost/20);
+                this.life -= 2;
+                if (this.life <= 0 || this.x < 0 || this.x > width || this.y < 0 || this.y > height) this.reset();
+            }
+            draw(ctx, colorStr, customScale) {
+                ctx.fillStyle = colorStr; ctx.globalAlpha = this.life / 255;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size * customScale, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        for(let i=0; i<200; i++) particles.push(new Particle());
+        let terrainHistory = [];
+
+        function drawFractalTree(x, y, len, angle, depth, sens, index, custom) {
+            if (depth === 0) return;
+            const val = dataArray[index] * sens;
+            ctx.beginPath(); ctx.moveTo(x, y);
+            const x2 = x + Math.cos(angle) * (len * custom);
+            const y2 = y + Math.sin(angle) * (len * custom);
+            ctx.lineTo(x2, y2);
+            ctx.strokeStyle = getColor(index, 30, val);
+            ctx.lineWidth = depth; ctx.stroke();
+            const spread = (val / 255) * Math.PI / 2 + 0.2;
+            drawFractalTree(x2, y2, len * 0.7, angle - spread, depth - 1, sens, index + 2, custom);
+            drawFractalTree(x2, y2, len * 0.7, angle + spread, depth - 1, sens, index + 2, custom);
+        }
+
+        // --- Render Loop ---
+        function animate() {
+            if (!isRunning) return;
+            requestAnimationFrame(animate);
+
+            analyser.getByteFrequencyData(dataArray); 
+            
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; 
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.globalCompositeOperation = blendSelect.value;
+            ctx.globalAlpha = 1.0;
+
+            const mode = modeSelect.value;
+            const sens = parseFloat(sensSlider.value);
+            const custom = parseFloat(customSlider.value); 
+            
+            let bassAvg = 0, midAvg = 0, highAvg = 0;
+            for(let i=0; i<10; i++) bassAvg += dataArray[i];
+            for(let i=40; i<80; i++) midAvg += dataArray[i];
+            for(let i=150; i<200; i++) highAvg += dataArray[i];
+            bassAvg /= 10; midAvg /= 40; highAvg /= 50;
+
+            ctx.lineCap = 'round';
+
+            switch (mode) {
+                case 'bars':
+                    const barWidth = ((width / bufferLength) * 2.5) * custom;
+                    const gap = barWidth + (1 * custom);
+                    for (let i = 0, x = 0; i < bufferLength; i++, x += gap) {
+                        const barHeight = dataArray[i] * sens * 2;
+                        ctx.fillStyle = getColor(i, bufferLength, dataArray[i]);
+                        ctx.fillRect(x, height - barHeight, barWidth, barHeight);
+                    }
+                    break;
+
+                case 'radial-bars':
+                    const radius = (100 + bassAvg * 0.5) * custom;
+                    for (let i = 0; i < bufferLength; i++) {
+                        const amt = dataArray[i] * sens;
+                        const rads = (i / bufferLength) * Math.PI * 2;
+                        ctx.strokeStyle = getColor(i, bufferLength, amt);
+                        ctx.lineWidth = 3; ctx.beginPath(); 
+                        ctx.moveTo(centerX + Math.cos(rads)*radius, centerY + Math.sin(rads)*radius); 
+                        ctx.lineTo(centerX + Math.cos(rads)*(radius+amt), centerY + Math.sin(rads)*(radius+amt)); 
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 'waveform':
+                    analyser.getByteTimeDomainData(dataArray);
+                    ctx.lineWidth = 3 * custom;
+                    ctx.beginPath();
+                    const sliceW = width / bufferLength;
+                    for (let i = 0, wx = 0; i < bufferLength; i++, wx += sliceW) {
+                        const wy = (dataArray[i] / 128.0) * centerY;
+                        if (i === 0) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+                    }
+                    ctx.strokeStyle = getColor(50, 100, 200); ctx.stroke();
+                    break;
+
+                case 'circular-wave':
+                    analyser.getByteTimeDomainData(dataArray);
+                    ctx.lineWidth = 3; ctx.beginPath();
+                    for (let i = 0; i < bufferLength; i++) {
+                        const r = (150 * custom) * (dataArray[i] / 128.0) * sens;
+                        const a = (i / bufferLength) * Math.PI * 2;
+                        if (i === 0) ctx.moveTo(centerX + Math.cos(a)*r, centerY + Math.sin(a)*r); 
+                        else ctx.lineTo(centerX + Math.cos(a)*r, centerY + Math.sin(a)*r);
+                    }
+                    ctx.closePath(); ctx.strokeStyle = getColor(bassAvg, 255, bassAvg); ctx.stroke();
+                    break;
+
+                case 'particles':
+                    particles.forEach((p, i) => {
+                        const audioIdx = i % bufferLength;
+                        p.update(dataArray[audioIdx] * sens);
+                        p.draw(ctx, getColor(audioIdx, bufferLength, dataArray[audioIdx]), custom);
+                    });
+                    break;
+
+                case 'matrix':
+                    const cols = 40; const cellW = (width / cols) * custom;
+                    for(let i=0; i<cols; i++) {
+                        const val = dataArray[i * 4] * sens;
+                        if(val > 10) {
+                            ctx.fillStyle = getColor(i, cols, val);
+                            ctx.fillRect(i * (width/cols), (Date.now()/5 + i*100) % height, cellW-2, val);
+                        }
+                    }
+                    break;
+
+                case 'rings':
+                    for(let i=0; i<8; i++) {
+                        const val = dataArray[i*10] * sens;
+                        ctx.beginPath(); ctx.arc(centerX, centerY, (50 + i*30*custom) + val, 0, Math.PI*2);
+                        ctx.strokeStyle = getColor(i, 8, val); ctx.lineWidth = 2 + val/50; ctx.stroke();
+                    }
+                    break;
+
+                case 'starburst':
+                    for (let i = 0; i < bufferLength; i+=2) {
+                        const val = dataArray[i] * sens * 1.5;
+                        const angle = (i / bufferLength) * Math.PI * 2;
+                        ctx.beginPath(); ctx.moveTo(centerX, centerY);
+                        ctx.lineTo(centerX + Math.cos(angle)*val, centerY + Math.sin(angle)*val);
+                        ctx.strokeStyle = getColor(i, bufferLength, val); 
+                        ctx.lineWidth = 2 * custom;
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 'terrain':
+                    terrainHistory.unshift(Array.from(dataArray).slice(0, 60));
+                    if(terrainHistory.length > 40) terrainHistory.pop();
+                    for(let z=0; z<terrainHistory.length; z++) {
+                        const arr = terrainHistory[z]; ctx.beginPath();
+                        for(let i=0; i<arr.length; i++) {
+                            const ty = centerY + z*15 - (arr[i] * sens * custom * (1 - z/40));
+                            if(i===0) ctx.moveTo((width/arr.length)*i, ty); else ctx.lineTo((width/arr.length)*i, ty);
+                        }
+                        ctx.strokeStyle = `rgba(0, 255, 200, ${1 - z/40})`; ctx.stroke();
+                    }
+                    break;
+
+                case 'mandala':
+                    for(let s=0; s<6; s++) {
+                        ctx.save(); ctx.translate(centerX, centerY); ctx.rotate((Math.PI * 2 / 6) * s);
+                        ctx.beginPath();
+                        for(let i=0; i<30; i++) {
+                            if(i===0) ctx.moveTo(i*10*custom, dataArray[i*2] * sens);
+                            else ctx.lineTo(i*10*custom, dataArray[i*2] * sens);
+                        }
+                        ctx.strokeStyle = getColor(bassAvg, 255, bassAvg); ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+                    }
+                    break;
+
+                case 'laser':
+                    for(let i=0; i<5; i++) {
+                        const val = dataArray[i*20] * sens; const ly = (height/6) * (i+1);
+                        ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(centerX - val, ly);
+                        ctx.lineTo(centerX, ly - val); ctx.lineTo(centerX + val, ly); ctx.lineTo(width, ly);
+                        ctx.strokeStyle = getColor(i, 5, val); 
+                        ctx.lineWidth = (2 + val/20) * custom;
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 'vortex':
+                    ctx.beginPath();
+                    for(let i=0; i<bufferLength; i++) {
+                        const angle = i * 0.1 * custom + Date.now()*0.001;
+                        const r = i + (dataArray[i] * sens);
+                        if(i===0) ctx.moveTo(centerX + Math.cos(angle)*r, centerY + Math.sin(angle)*r); 
+                        else ctx.lineTo(centerX + Math.cos(angle)*r, centerY + Math.sin(angle)*r);
+                    }
+                    ctx.strokeStyle = getColor(bassAvg, 255, bassAvg); ctx.stroke();
+                    break;
+
+                case 'dots':
+                    for(let i=0; i<bufferLength; i+=4) {
+                        const val = dataArray[i] * sens;
+                        ctx.beginPath();
+                        ctx.arc((width / (bufferLength/4)) * (i/4), centerY - val + Math.sin(Date.now()*0.005 + i)*50, Math.max(1, val/10) * custom, 0, Math.PI*2);
+                        ctx.fillStyle = getColor(i, bufferLength, val); ctx.fill();
+                    }
+                    break;
+
+                case 'polygon':
+                    const sides = 3 + Math.floor(bassAvg / 30); 
+                    const polyRad = (100 + bassAvg * sens) * custom;
+                    ctx.beginPath();
+                    for(let i=0; i<=sides; i++) {
+                        const angle = (i / sides) * Math.PI * 2 + Date.now()*0.001;
+                        if(i===0) ctx.moveTo(centerX + Math.cos(angle)*polyRad, centerY + Math.sin(angle)*polyRad); 
+                        else ctx.lineTo(centerX + Math.cos(angle)*polyRad, centerY + Math.sin(angle)*polyRad);
+                    }
+                    ctx.strokeStyle = getColor(bassAvg, 255, bassAvg); ctx.lineWidth = 5; ctx.stroke();
+                    break;
+
+                case 'neon-orb':
+                    const orbSize = (50 + bassAvg * sens) * custom;
+                    const gradient = ctx.createRadialGradient(centerX, centerY, orbSize*0.1, centerX, centerY, orbSize);
+                    gradient.addColorStop(0, '#fff'); gradient.addColorStop(0.2, getColor(bassAvg, 255, bassAvg)); gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(centerX, centerY, orbSize, 0, Math.PI*2); ctx.fill();
+                    break;
+
+                case 'kaleidoscope':
+                    const slices = 12;
+                    for (let s = 0; s < slices; s++) {
+                        ctx.save();
+                        ctx.translate(centerX, centerY);
+                        ctx.rotate((Math.PI * 2 / slices) * s);
+                        if (s % 2 === 0) ctx.scale(1, -1); 
+                        ctx.beginPath();
+                        for (let i = 0; i < 40; i++) {
+                            const val = dataArray[i] * sens;
+                            if(i===0) ctx.moveTo(i * 8 * custom, val);
+                            else ctx.lineTo(i * 8 * custom, val);
+                        }
+                        ctx.strokeStyle = getColor(midAvg, 255, midAvg);
+                        ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+                    }
+                    break;
+
+                case 'retro-grid':
+                    const horizon = centerY + 50;
+                    const speed = (Date.now() * 0.1) % 40;
+                    ctx.beginPath(); ctx.arc(centerX, horizon, (120 + bassAvg * 0.5) * custom, Math.PI, 0);
+                    ctx.fillStyle = getColor(200, 255, 200); ctx.fill();
+
+                    ctx.beginPath();
+                    for(let i = -25; i <= 25; i++) {
+                        ctx.moveTo(centerX + i * 15, horizon);
+                        ctx.lineTo(centerX + i * 200, height);
+                    }
+                    for(let i = 0; i < 20; i++) {
+                        const yOffset = Math.pow(i + (speed / 40), 1.8) * 6;
+                        const y = horizon + yOffset;
+                        if(y < height) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+                    }
+                    ctx.strokeStyle = getColor(bassAvg, 255, bassAvg); ctx.lineWidth = 2; ctx.stroke();
+                    break;
+
+                case 'dna':
+                    for(let i = 0; i < bufferLength; i += 4) {
+                        const val = dataArray[i] * sens;
+                        const y = (height / bufferLength) * i * 4;
+                        const offset = Math.sin(i * 0.1 + Date.now() * 0.002) * (50 + val) * custom;
+                        
+                        ctx.fillStyle = getColor(i, bufferLength, val);
+                        ctx.beginPath(); ctx.arc(centerX + offset, y, 4 + val/20, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = getColor(bufferLength - i, bufferLength, val);
+                        ctx.beginPath(); ctx.arc(centerX - offset, y, 4 + val/20, 0, Math.PI*2); ctx.fill();
+                        
+                        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                        ctx.beginPath(); ctx.moveTo(centerX + offset, y); ctx.lineTo(centerX - offset, y); ctx.stroke();
+                    }
+                    break;
+
+                case 'glitch-city':
+                    for(let i = 0; i < 30; i++) {
+                        const val = dataArray[i*5] * sens;
+                        if (val > 50) {
+                            const rx = Math.random() * width; const ry = Math.random() * height;
+                            const rw = (Math.random() * 200 + val) * custom;
+                            const rh = Math.random() * 20 + 5;
+                            ctx.fillStyle = getColor(i, 30, val); ctx.fillRect(rx, ry, rw, rh);
+                            
+                            if(Math.random() > 0.8) {
+                                const tear = ctx.getImageData(rx, ry, rw, rh);
+                                ctx.putImageData(tear, rx + (Math.random() - 0.5) * 100, ry);
+                            }
+                        }
+                    }
+                    break;
+
+                case 'supernova':
+                    if (bassAvg > 120) { 
+                        for(let i = 0; i < 50; i++) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const length = Math.random() * (bassAvg * sens * 3) * custom;
+                            ctx.beginPath(); ctx.moveTo(centerX, centerY);
+                            ctx.lineTo(centerX + Math.cos(angle)*length, centerY + Math.sin(angle)*length);
+                            ctx.strokeStyle = getColor(Math.floor(Math.random()*255), 255, 255);
+                            ctx.lineWidth = Math.random() * 5 + 1; ctx.stroke();
+                        }
+                    }
+                    break;
+
+                case 'black-hole':
+                    ctx.beginPath(); ctx.arc(centerX, centerY, (40 + bassAvg*0.2) * custom, 0, Math.PI*2);
+                    ctx.fillStyle = '#000'; ctx.fill(); ctx.lineWidth = 2;
+                    ctx.strokeStyle = getColor(bassAvg, 255, bassAvg); ctx.stroke();
+                    particles.forEach((p, i) => {
+                        const val = dataArray[i % bufferLength] * sens;
+                        const dx = centerX - p.x; const dy = centerY - p.y;
+                        p.x += dx * 0.05; p.y += dy * 0.05;
+                        p.angle += 0.1; 
+                        p.x += Math.cos(p.angle) * (val/5); p.y += Math.sin(p.angle) * (val/5);
+                        p.life -= 1;
+                        if(Math.abs(dx) < 50 && Math.abs(dy) < 50) p.reset();
+                        p.draw(ctx, getColor(i % bufferLength, bufferLength, val), 1);
+                    });
+                    break;
+
+                case 'tunnel':
+                    for (let i = 0; i < 15; i++) {
+                        const val = dataArray[i*5] * sens;
+                        const depth = (Date.now() * 0.002 + i) % 15;
+                        const scale = Math.pow(depth, 1.5) * 10 * custom;
+                        ctx.beginPath();
+                        ctx.rect(centerX - scale/2, centerY - scale/2, scale, scale);
+                        ctx.strokeStyle = getColor(i, 15, val);
+                        ctx.lineWidth = 2 + (val/50); ctx.stroke();
+                    }
+                    break;
+
+                case 'galaxy':
+                    for(let i = 0; i < bufferLength; i++) {
+                        const val = dataArray[i] * sens;
+                        const a = i * 0.1 + Date.now()*0.0005;
+                        const r = (i * 1.5 + (val * 0.5)) * custom;
+                        const cx = centerX + Math.cos(a)*r; const cy = centerY + Math.sin(a)*r;
+                        ctx.fillStyle = getColor(i, bufferLength, val);
+                        ctx.beginPath(); ctx.arc(cx, cy, Math.max(1, val/20), 0, Math.PI*2); ctx.fill();
+                    }
+                    break;
+
+                case 'fractal-tree':
+                    drawFractalTree(centerX, height, 120 + bassAvg*0.5, -Math.PI/2, 6, sens, 0, custom);
+                    break;
+
+                case 'lightning':
+                    for(let i = 0; i < 4; i++) {
+                        let lx = centerX; let ly = centerY;
+                        ctx.beginPath(); ctx.moveTo(lx, ly);
+                        for(let j = 0; j < 20; j++) {
+                            const val = dataArray[j*5] * sens;
+                            lx += (Math.random() - 0.5) * 100;
+                            ly += (Math.random() - 0.5) * 100 + (i%2==0?-30:30);
+                            ctx.lineTo(lx, ly);
+                        }
+                        ctx.strokeStyle = getColor(bassAvg, 255, bassAvg);
+                        ctx.lineWidth = (2 + (bassAvg/40)) * custom;
+                        ctx.stroke();
+                    }
+                    break;
+
+                case 'liquid-blobs':
+                    for(let i=0; i<10; i++) {
+                        const val = dataArray[i*15] * sens;
+                        const x = centerX + Math.sin(Date.now()*0.001 + i)*150;
+                        const y = centerY + Math.cos(Date.now()*0.0013 + i)*150;
+                        ctx.beginPath(); ctx.arc(x, y, (50 + val) * custom, 0, Math.PI*2);
+                        ctx.fillStyle = getColor(i, 10, val);
+                        ctx.globalAlpha = 0.5; ctx.fill();
+                    }
+                    break;
+
+                case 'tesseract':
+                    const size = (100 + bassAvg * 0.5) * custom;
+                    const rot = Date.now() * 0.001;
+                    ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(rot);
+                    ctx.strokeStyle = getColor(bassAvg, 255, bassAvg); ctx.lineWidth = 2;
+                    ctx.strokeRect(-size/2, -size/2, size, size);
+                    ctx.rotate(-rot*2);
+                    ctx.strokeRect(-size/4, -size/4, size/2, size/2);
+                    ctx.beginPath();
+                    ctx.moveTo(-size/2, -size/2); ctx.lineTo(-size/4, -size/4);
+                    ctx.moveTo(size/2, -size/2); ctx.lineTo(size/4, -size/4);
+                    ctx.moveTo(-size/2, size/2); ctx.lineTo(-size/4, size/4);
+                    ctx.moveTo(size/2, size/2); ctx.lineTo(size/4, size/4);
+                    ctx.stroke(); ctx.restore();
+                    break;
+
+                case 'pulse-web':
+                    for(let i=0; i<30; i++) {
+                        const val = dataArray[i*4] * sens;
+                        const p1x = centerX + Math.cos(i + Date.now()*0.001) * ((100+val)*custom);
+                        const p1y = centerY + Math.sin(i + Date.now()*0.002) * ((100+val)*custom);
+                        ctx.fillStyle = getColor(i, 30, val);
+                        ctx.beginPath(); ctx.arc(p1x, p1y, 4, 0, Math.PI*2); ctx.fill();
+                        if (i > 0) {
+                            const p2x = centerX + Math.cos((i-1) + Date.now()*0.001) * ((100+dataArray[(i-1)*4]*sens)*custom);
+                            const p2y = centerY + Math.sin((i-1) + Date.now()*0.002) * ((100+dataArray[(i-1)*4]*sens)*custom);
+                            ctx.beginPath(); ctx.moveTo(p1x, p1y); ctx.lineTo(p2x, p2y);
+                            ctx.strokeStyle = getColor(i, 30, val); ctx.stroke();
+                        }
+                    }
+                    break;
+
+                case 'sonic-flower':
+                    const c = (8 + (bassAvg/50)) * custom;
+                    for (let n = 0; n < bufferLength/2; n++) {
+                        const a = n * 137.5 * (Math.PI / 180);
+                        const r = c * Math.sqrt(n);
+                        const val = dataArray[n] * sens;
+                        const x = centerX + Math.cos(a) * (r + val*0.2);
+                        const y = centerY + Math.sin(a) * (r + val*0.2);
+                        ctx.fillStyle = getColor(n, bufferLength/2, val);
+                        ctx.beginPath(); ctx.arc(x, y, 2 + val/20, 0, Math.PI*2); ctx.fill();
+                    }
+                    break;
+
+                case 'hyperspace':
+                    particles.forEach((p, i) => {
+                        const val = dataArray[i % bufferLength] * sens;
+                        p.z -= (2 + (bassAvg*0.05));
+                        if (p.z <= 0) { p.z = width; p.x = Math.random()*width; p.y = Math.random()*height; }
+                        
+                        const sx = (p.x - centerX) * (width / p.z) + centerX;
+                        const sy = (p.y - centerY) * (width / p.z) + centerY;
+                        const sSize = ((1 - p.z / width) * 5 + (val/50)) * custom;
+                        
+                        ctx.fillStyle = getColor(i % bufferLength, bufferLength, val);
+                        ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.1, sSize), 0, Math.PI*2); ctx.fill();
+                    });
+                    break;
+            }
+        }
+    </script>
+</body>
+</html>
